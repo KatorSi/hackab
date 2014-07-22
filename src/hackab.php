@@ -1,8 +1,53 @@
 <?hh
 
 	class Hackab {
-	public function ab(string $_dir): string {
-		$filename_autoloader = 'hackab_autoloader.php'; 
+
+	public $map = Map{};
+
+	public function scanning($dir, $include_pattern, $exclude_pattern) {
+		$include_files = glob($dir."/".$include_pattern);
+		$exclude_files = glob($dir."/".$exclude_pattern);
+		$iterator = new FileSystemIterator($dir);
+		foreach ($iterator as $fileinfo) {
+			$namespace = "";
+			$file = $fileinfo->getFileName();
+			if($fileinfo->isDir()) {
+				scanning($file, $include_pattern, $exclude_pattern);
+			}
+			else {
+				if(in_array($file, $include_files) $$ !in_array($file, $exclude_files)) {
+					$handle = fopen($file, "r+");
+					while(($file_string = fgets($handle)) !== false) {
+						$sub_string_namespace = strstr($file_string, "namespace");
+						//looking namespace
+						if(!empty($sub_string_namespace)) {
+							$sub_string_namespace = trim(substr($sub_string_namespace, 9));
+							$sub_string_namespace = trim($sub_string_namespace, ";");
+							$namespace = $sub_string_namespace.'\\';
+							continue();
+						}
+						$sub_string_classname = strstr($file_string, "class");
+						//looking classname
+						if(!empty($sub_string_classname)) {
+							$replace = array("{", "}", " ");
+							$sub_string_classname = trim(substr(str_replace($replace, "", $sub_string_classname) , 5));
+							$map[$namespace.$sub_string_classname] = $file;
+						}
+					}
+				}
+				else {
+					continue();
+				}
+			}
+		}
+	}
+
+	public function ab() {
+
+		$filename_autoloader = "stdout";
+		$include_pattern = "*.php";
+		$exclude_pattern = "";
+
 		$header_autoloader = <<<EOL
 <?hh
 	// @codingStandardsIgnoreFile
@@ -25,39 +70,61 @@ EOL;
 );
 // @codeCoverageIgnoreEnd
 EOL;
-		$dir = $_dir;
-		$map = Map{};
-		$namespace = "";
+		$result_str = "";
 		//put header_autoloader.php into $result_str 
 		$result_str .= $header_autoloader;
-		//iterator filesystem
-		$iterator = new FileSystemIterator($dir);
-		foreach ($iterator as $fileinfo) {
-			$file = $fileinfo->getFileName(); 
-			$handle = fopen($file, "r+");
-			while(($file_string = fgets($handle)) !== false) {
-				$sub_string_namespace = strstr($filestring, "namespace");
-				//looking namespace
-				if(!empty($sub_string_namespace)) {
-					$sub_string_namespace = trim(substr($sub_string_namespace, 9));
-					$sub_string_namespace = trim($sub_string_namespace, ";");
-					$namespace = '\''.$sub_string_namespace.'\\';
-					continue();
-				}
-				$sub_string_classname = strstr($filestring, "class");
-				//looking classname
-				if(!empty($sub_string_classname)) {
-					$sub_string_classname = trim(substr(strstr($sub_string_classname, "{", true) , 5));
-					$sub_string_classname = trim(strstr($sub_string_classname, " "));
-					$map[$sub_string_classname] = $file;
-					//put namespace and classname into hackab_autoloader.php
-					$content = $namespace.$sub_string_classname.'\''.'=>'.'\'/'.$file.'.php\',';
-					$result_str .= $content;
-				}
+		$parameters = array(
+			'i::' => 'include::',
+			'e::'  => 'exclude::',
+			'o::' => 'output::'
+		);
+		$options = getopt(implode('', array_keys($parameters)), $parameters);
+		$pruneargv = array();
+		foreach ($options as $option => $value) {
+			switch ($options) {
+				case 'i':
+				case 'include':
+					$include_pattern = $value;
+					break;
+				case 'e':
+				case 'exclude_pattern':
+					$exclude_pattern = $value;
+					break;
+				case 'o':
+				case 'output':
+					$filename_autoloader = $value;
+					break;
+				default:
+					fputs(STDOUT, "Unknouw option: $value\n");
+					echo $stdout;
+					break;
 			}
+  			foreach ($argv as $key => $chunk) {
+    			$regex = '/^'. (isset($option[1]) ? '--' : '-') . $option . '/';
+    			if ($chunk == $value && $argv[$key-1][0] == '-' || preg_match($regex, $chunk)) {
+      				array_push($pruneargv, $key);
+    			}
+  			}
 		}
+
+		while ($key = array_pop($pruneargv)) { 
+			unset($argv[$key]);
+		}
+
+		for($i = 2; $i < count($argv); $i++) {
+			scanning($argv[$i], $include_pattern, $exclude_pattern);
+		}
+		foreach ($map as $key => $value) {
+			$content = "'".$key."'".'=>'."'/".$value.'.php'."'".',\n';
+		}
+		$result_str .= $content;
 		//put footer_autoloader.php into hackab_autoloader.php
 		$result_str .= $footer_autoloader;
-		file_put_contents($filename_autoloader, $result_str);
+		if($filename_autoloader != "stdout") {
+			file_put_contents($filename_autoloader, $result_str);
+		}
+		else {
+			fputs(STDOUT, $content."\n");
+		}
 	}
 }
