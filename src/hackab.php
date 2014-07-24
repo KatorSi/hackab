@@ -1,10 +1,15 @@
 <?hh
+	
+	define("NAMESPACE", "namespace");
+	define("CLASSNAME", "class");
 
 	class Hackab {
 
 	public $map = Map{};
 
 	public function scanning($dir, $include_pattern, $exclude_pattern) {
+		$namespace_lenght = count(NAMESPACE);
+		$class_length = count(CLASSNAME);
 		$include_files = glob($dir."/".$include_pattern);
 		$exclude_files = glob($dir."/".$exclude_pattern);
 		$iterator = new FileSystemIterator($dir);
@@ -12,16 +17,15 @@
 			$namespace = "";
 			$file = $fileinfo->getFileName();
 			if($fileinfo->isDir()) {
-				scanning($file, $include_pattern, $exclude_pattern);
+				scanning($dir."/".$file, $include_pattern, $exclude_pattern);
 			}
 			else {
-				if(in_array($file, $include_files) $$ !in_array($file, $exclude_files)) {
-					$handle = fopen($file, "r+");
-					while(($file_string = fgets($handle)) !== false) {
+				if(in_array($file, $include_files) && !in_array($file, $exclude_files)) {
+					while(($file_string = $file->fgets()) !== false) {
 						$sub_string_namespace = strstr($file_string, "namespace");
 						//looking namespace
 						if(!empty($sub_string_namespace)) {
-							$sub_string_namespace = trim(substr($sub_string_namespace, 9));
+							$sub_string_namespace = trim(substr($sub_string_namespace, $namespace_lenght));
 							$sub_string_namespace = trim($sub_string_namespace, ";");
 							$namespace = $sub_string_namespace.'\\';
 							continue();
@@ -30,13 +34,10 @@
 						//looking classname
 						if(!empty($sub_string_classname)) {
 							$replace = array("{", "}", " ");
-							$sub_string_classname = trim(substr(str_replace($replace, "", $sub_string_classname) , 5));
-							$map[$namespace.$sub_string_classname] = $file;
+							$sub_string_classname = trim(substr(str_replace($replace, "", $sub_string_classname) , $class_length));
+							$this->$map[$namespace.$sub_string_classname] = $file;
 						}
 					}
-				}
-				else {
-					continue();
 				}
 			}
 		}
@@ -70,6 +71,7 @@ EOL;
 );
 // @codeCoverageIgnoreEnd
 EOL;
+		$content = "";
 		$result_str = "";
 		//put header_autoloader.php into $result_str 
 		$result_str .= $header_autoloader;
@@ -81,7 +83,7 @@ EOL;
 		$options = getopt(implode('', array_keys($parameters)), $parameters);
 		$pruneargv = array();
 		foreach ($options as $option => $value) {
-			switch ($options) {
+			switch ($option) {
 				case 'i':
 				case 'include':
 					$include_pattern = $value;
@@ -95,8 +97,7 @@ EOL;
 					$filename_autoloader = $value;
 					break;
 				default:
-					fputs(STDOUT, "Unknouw option: $value\n");
-					echo $stdout;
+					echo "Unknouw option: $value\n";
 					break;
 			}
   			foreach ($argv as $key => $chunk) {
@@ -111,11 +112,11 @@ EOL;
 			unset($argv[$key]);
 		}
 
-		for($i = 2; $i < count($argv); $i++) {
+		for($i = 1; $i < count($argv); $i++) {
 			scanning($argv[$i], $include_pattern, $exclude_pattern);
 		}
-		foreach ($map as $key => $value) {
-			$content = "'".$key."'".'=>'."'/".$value.'.php'."'".',\n';
+		foreach ($this->$map as $className => $fileName) {
+			$content .= "'".$calssName."'=>'/".$fileName.".php'\n";
 		}
 		$result_str .= $content;
 		//put footer_autoloader.php into hackab_autoloader.php
@@ -124,7 +125,7 @@ EOL;
 			file_put_contents($filename_autoloader, $result_str);
 		}
 		else {
-			fputs(STDOUT, $content."\n");
+			echo "$content\n";
 		}
 	}
 }
