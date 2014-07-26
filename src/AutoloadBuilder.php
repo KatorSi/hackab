@@ -1,6 +1,6 @@
 <?hh
 
-	class AutoLoader {
+	class AutoloadBuilder {
 
 	const NS = "namespace";
 	const CN = "class";
@@ -16,13 +16,15 @@
 		foreach ($iterator as $fileinfo) {
 			$namespace = "";
 			$file = $fileinfo->getFileName();
+			$path = $dir."/".$file;
 			if($fileinfo->isDir()) {
-				scanning($dir."/".$file, $include_pattern, $exclude_pattern);
+				scanning($path, $include_pattern, $exclude_pattern);
 			}
 			else {
-				if(in_array($dir."/".$file, $include_files) && !in_array($dir."/".$file, $exclude_files)) {
-					while(!$fileinfo->eof()) {
-						$file_string = $fileinfo->fgets();
+				if(in_array($path, $include_files) && !in_array($path, $exclude_files)) {
+					$spl_file = new SplFileObject($file);
+					while(!$spl_file->eof()) {
+						$file_string = $spl_file->fgets();
 						$sub_string_namespace = strstr($file_string, $this::NS);
 						//looking namespace
 						if(!empty($sub_string_namespace)) {
@@ -34,9 +36,9 @@
 						$sub_string_classname = strstr($file_string, $this::CN);
 						//looking classname
 						if(!empty($sub_string_classname)) {
-							$replace = array("{", "}", " ");
+							$replace = array("{", "}");
 							$sub_string_classname = trim(substr(str_replace($replace, "", $sub_string_classname) , $class_length));
-							$this->map[$namespace.$sub_string_classname] = $dir."/".$file;
+							$this->map[$namespace.$sub_string_classname] = $path;
 						}
 					}
 				}
@@ -46,7 +48,7 @@
 
 	function __construct() {
 
-		$filename_autoloader = "stdout";
+		$filename_autoloader = NULL;
 		$include_pattern = "*.php";
 		$exclude_pattern = "";
 
@@ -98,9 +100,11 @@ EOL;
 					$filename_autoloader = $value;
 					break;
 				default:
-					echo "Unknouw option: $value\n";
+					echo "Unknown option: $option\n";
 					break;
 			}
+		}
+		foreach ($options as $option => $value) {
   			foreach ($argv as $key => $chunk) {
     			$regex = '/^'. (isset($option[1]) ? '--' : '-') . $option . '/';
     			if ($chunk == $value && $argv[$key-1][0] == '-' || preg_match($regex, $chunk)) {
@@ -122,7 +126,7 @@ EOL;
 		$result_str .= $content;
 		//put footer_autoloader.php into hackab_autoloader.php
 		$result_str .= $footer_autoloader;
-		if($filename_autoloader != "stdout") {
+		if(is_null($filename_autoloader)) {
 			file_put_contents($filename_autoloader, $result_str);
 		}
 		else {
