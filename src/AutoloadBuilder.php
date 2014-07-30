@@ -1,9 +1,10 @@
 <?hh
 
+
 	class AutoloadBuilder {
 
-	const NS = "namespace";
-	const CN = "class";
+	const NS = 'namespace';
+	const CN = 'class';
 
 	public $map = Map{};
 
@@ -17,28 +18,29 @@
 			$namespace = "";
 			$file = $fileinfo->getFileName();
 			$path = $dir."/".$file;
-			if($fileinfo->isDir()) {
-				scanning($path, $include_pattern, $exclude_pattern);
+			if($fileinfo->isDir() && ($file != "." && $file != "..")) {
+				$this->scanning($path, $include_pattern, $exclude_pattern);
 			}
 			else {
 				if(in_array($path, $include_files) && !in_array($path, $exclude_files)) {
-					$spl_file = new SplFileObject($file);
+					$spl_file = new SplFileObject($path);
 					while(!$spl_file->eof()) {
 						$file_string = $spl_file->fgets();
+						$pos_namespace = strpos(trim($file_string), $this::NS);
 						$sub_string_namespace = strstr($file_string, $this::NS);
-						//looking namespace
-						if(!empty($sub_string_namespace)) {
+						if(!empty($sub_string_namespace) && $pos_namespace === 0) {
 							$sub_string_namespace = trim(substr($sub_string_namespace, $namespace_length));
 							$sub_string_namespace = trim($sub_string_namespace, ";");
-							$namespace = $sub_string_namespace.'\\';
-							continue();
+							$namespace = $sub_string_namespace."\\\\";
+							continue;
 						}
+						$pos_class = strpos(trim($file_string), $this::CN);
 						$sub_string_classname = strstr($file_string, $this::CN);
-						//looking classname
-						if(!empty($sub_string_classname)) {
+						if(!empty($sub_string_classname) && $pos_class === 0) {
 							$replace = array("{", "}");
 							$sub_string_classname = trim(substr(str_replace($replace, "", $sub_string_classname) , $class_length));
-							$this->map[$namespace.$sub_string_classname] = $path;
+							$sub_string_classname = explode(" ", $sub_string_classname, 2);
+							$this->map[$namespace.$sub_string_classname[0]] = $path;
 						}
 					}
 				}
@@ -52,7 +54,7 @@
 		$include_pattern = "*.php";
 		$exclude_pattern = "";
 
-		$header_autoloader = <<<EOL
+		$header_autoloader = <<<'EOL'
 <?hh
 	// @codingStandardsIgnoreFile
 	// @codeCoverageIgnoreStart
@@ -63,7 +65,8 @@
         	if ($classes === null) {
             	$classes = array(
 EOL;
-		$footer_autoloader = <<<EOL
+
+		$footer_autoloader = <<<'EOD'
  );
         }
         $cn = strtolower($class);
@@ -73,10 +76,10 @@ EOL;
     }
 );
 // @codeCoverageIgnoreEnd
-EOL;
+EOD;
+		global $argv;
 		$content = "";
 		$result_str = "";
-		//put header_autoloader.php into $result_str 
 		$result_str .= $header_autoloader;
 		$parameters = array(
 			'i::' => 'include::',
@@ -112,21 +115,21 @@ EOL;
     			}
   			}
 		}
-
 		while ($key = array_pop($pruneargv)) { 
 			unset($argv[$key]);
 		}
-
-		for($i = 1; $i < count($argv); $i++) {
-			$this->scanning($argv[$i], $include_pattern, $exclude_pattern);
+		foreach($argv as $num => $val) {
+			if($num == 0) {
+				continue;
+			}
+			$this->scanning($val, $include_pattern, $exclude_pattern);
 		}
-		foreach ($this->map as $className => $fileName) {
-			$content .= "'".$className."'=>'/".$fileName.".php'\n";
-		}
+		$content = join(',', array_map(function($className, $fileName) {
+			return "\n\t\t\t'".strtolower($className)."'=>'/".strtolower($fileName)."'";
+		}, array_keys($this->map), array_values($this->map)));
 		$result_str .= $content;
-		//put footer_autoloader.php into hackab_autoloader.php
-		$result_str .= $footer_autoloader;
-		if(is_null($filename_autoloader)) {
+		$result_str .= "\n".$footer_autoloader;
+		if(!is_null($filename_autoloader)) {
 			file_put_contents($filename_autoloader, $result_str);
 		}
 		else {

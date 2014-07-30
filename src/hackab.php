@@ -1,5 +1,5 @@
 <?hh
 
-	require_once "AutoLoader.php";
+	require_once "AutoloadBuilder.php";
 
-	$autoloader = new AutoLoader();
+	$autoloader = new AutoloadBuilder();
